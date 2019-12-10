@@ -37,7 +37,7 @@ class Ref(Param):
         return self._interpreter[self._value]
 
     def __repr__(self):
-        return f'Ref[{self._value}]->{self()}'
+        return f'Ref({self._value})[{self()}]'
 
 
 class Rel(Param):
@@ -53,7 +53,7 @@ class Rel(Param):
         return self._interpreter[self._value + self._interpreter._rbo]
 
     def __repr__(self):
-        return f'Rel[{self._value}]->{self()}'
+        return f'Rel({self._value})[{self()}]'
 
 
 class Var(Param):
@@ -67,30 +67,34 @@ class Var(Param):
         return self._value
 
     def __repr__(self):
-        return f'Var->{self()}'
+        return f'Var[{self()}]'
 
 
 class Interpreter:
     DEBUG = False
 
-    def __init__(self, programm: List[int]) -> None:
+    def __init__(self, program: List[int]) -> None:
         super().__init__()
-        self._memory: Dict[int, int] = defaultdict(int, {k: v for k, v in enumerate(programm)})
+        self._memory: Dict[int, int] = defaultdict(int, {k: v for k, v in enumerate(program)})
         self._ic = 0  # Instruction Counter
         self._rbo = 0  # Relative Base Offset
+        self._finished = False
         self.stdout = Queue()
         self.stdin = Queue()
 
-    @classmethod
-    def log(cls, *text):
-        if cls.DEBUG:
+    @property
+    def finished(self):
+        return self._finished
+
+    def log(self, *text):
+        if self.DEBUG:
             print(*text)
 
     @staticmethod
     def from_file(file):
         with open(file) as f:
-            programm = [int(e) for e in f.read().split(',')]
-        return Interpreter(programm)
+            program = [int(e) for e in f.read().split(',')]
+        return Interpreter(program)
 
     def put(self, value):
         """Adds value to stdin"""
@@ -98,7 +102,7 @@ class Interpreter:
 
     def get(self):
         """Reads value from stdout, blocks if empty"""
-        self.stdout.get()
+        return self.stdout.get()
 
     def stream(self):
         while not self.stdout.empty():
@@ -145,60 +149,83 @@ class Interpreter:
         self._memory[key] = value
 
     def start(self):
-        thread = Thread(target=self.run)
+        thread = Thread(target=self.run, daemon=True)
         thread.start()
         return thread
 
     def run(self):
-        while True:
-            op_code, *_ = self._read(1, modes='1')
+        while not self._finished:
+            self.step()
 
-            op = op_code() % 100
-            modes = str(op_code())[:-2]
+    def run_debug(self):
+        self.DEBUG = True
+        self.log(f'  MEM| (IC: {self._ic}, RBO: {self._rbo})', self[:])
+        while not self.finished:
+            self.step()
+            self.log(f'  MEM| (IC: {self._ic}, RBO: {self._rbo})', self[:])
 
-            if op == 1:  # Addition
-                p1, p2, des = self._read(3, modes=modes)
-                des(p1() + p2())
+    def step(self):
+        op_code, *_ = self._read(1, modes='1')
 
-            elif op == 2:  # Multiply
-                p1, p2, des = self._read(3, modes=modes)
-                des(p1() * p2())
+        op = op_code() % 100
+        modes = str(op_code())[:-2]
 
-            elif op == 3:  # Set IC
-                p1, *_ = self._read(1, modes=modes)
-                p1(self.stdin.get())
+        if op == 1:  # Addition
+            p1, p2, des = self._read(3, modes=modes)
+            self.log(f'1 ADD| {des} = {p1} + {p2}')
+            des(p1() + p2())
 
-            elif op == 4:  # PRINT
-                p1, *_ = self._read(1, modes=modes)
-                self.stdout.put(p1())
+        elif op == 2:  # Multiply
+            p1, p2, des = self._read(3, modes=modes)
+            self.log(f'2 MUL| {des} = {p1} * {p2}')
+            des(p1() * p2())
 
-            elif op == 5:  # JUMP-IF-TRUE
-                p1, p2, *_ = self._read(2, modes=modes)
-                if p1() != 0:
-                    self._ic = p2()
+        elif op == 3:  # READ
+            p1, *_ = self._read(1, modes=modes)
+            self.log(f'3 RIN| {p1} = STDIN')
+            p1(self.stdin.get(timeout=5))
 
-            elif op == 6:  # JUMP-IF-FALSE
-                p1, p2, *_ = self._read(2, modes=modes)
-                if p1() == 0:
-                    self._ic = p2()
+        elif op == 4:  # PRINT
+            p1, *_ = self._read(1, modes=modes)
+            self.log(f'4 PUT| STDOUT = {p1}')
+            self.stdout.put(p1())
 
-            elif op == 7:  # LESS-THEN
-                p1, p2, p3, *_ = self._read(3, modes=modes)
-                p3(bool(p1() < p2()))
-
-            elif op == 8:  # EQUAL
-                p1, p2, p3, *_ = self._read(3, modes=modes)
-                p3(bool(p1() == p2()))
-
-            elif op == 9:  # Set RBO
-                p1, *_ = self._read(1, modes=modes)
-                self._rbo = p1()
-
-            elif op == 99:
-                self.log('Stop program')
-                break
+        elif op == 5:  # JUMP-IF-TRUE
+            p1, p2, *_ = self._read(2, modes=modes)
+            if p1() != 0:
+                self.log(f'5 JIT| {p1} != 0 | IC = {p2}')
+                self._ic = p2()
             else:
-                raise Exception(f'Unknown OP code {op}')
+                self.log(f'5 JIT| {p1} != 0 | SKIP')
+
+        elif op == 6:  # JUMP-IF-FALSE
+            p1, p2, *_ = self._read(2, modes=modes)
+            if p1() == 0:
+                self.log(f'6 JIF| {p1} == 0 | IC = {p2}')
+                self._ic = p2()
+            else:
+                self.log(f'6 JIF| {p1} == 0 | SKIP')
+
+        elif op == 7:  # LESS-THEN
+            p1, p2, p3, *_ = self._read(3, modes=modes)
+            self.log(f'7 LET| {p3} = {p1} < {p2}')
+            p3(int(p1() < p2()))
+
+        elif op == 8:  # EQUAL
+            p1, p2, p3, *_ = self._read(3, modes=modes)
+            self.log(f'8 EQL| {p3} = {p1} == {p2}')
+            p3(int(p1() == p2()))
+
+        elif op == 9:  # SET RBO
+            p1, *_ = self._read(1, modes=modes)
+            self.log(f'9 RBO| RBO = {p1}')
+            self._rbo += p1()
+
+        elif op == 99:
+            self.log('Stop program')
+            self._finished = True
+        else:
+            raise Exception(f'Unknown OP code {op}')
 
     def dump(self) -> Dict[int, int]:
         return self._memory.copy()

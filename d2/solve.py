@@ -45,7 +45,7 @@ def solve():
 
     with open('input.txt') as f:
         _input: List = f.read().split(",")
-    programm = _input[:]
+    program = _input[:]
 
     _input[1] = 12
     _input[2] = 2
@@ -55,7 +55,7 @@ def solve():
     # solve part 2
 
     def calc(noun, verb):
-        _input = programm[:]
+        _input = program[:]
         _input[1] = noun
         _input[2] = verb
         return run(_input)[0]
