@@ -39,6 +39,21 @@ class Ref(Param):
         return f'Ref[{self._value}]->{self()}'
 
 
+class Rel(Param):
+    def __init__(self, interpreter: 'Interpreter', value):
+        self._interpreter = interpreter
+        self._value = value
+
+    def set(self, value):
+        self._interpreter[self._value + self._interpreter._rbo] = value
+
+    def get(self):
+        return self._interpreter[self._value + self._interpreter._rbo]
+
+    def __repr__(self):
+        return f'Rel[{self._value}]->{self()}'
+
+
 class Var(Param):
     def __init__(self, value):
         self._value = value
@@ -59,7 +74,8 @@ class Interpreter:
     def __init__(self, state: List[int]) -> None:
         super().__init__()
         self._state = state.copy()
-        self._ic = 0
+        self._ic = 0  # Instruction Counter
+        self._rbo = 0  # Relative Base Offset
         self.stdout = Queue()
         self.stdin = Queue()
 
@@ -93,6 +109,10 @@ class Interpreter:
                 yield Ref(self, cur)
             elif mode == '1':
                 yield Var(cur)
+            elif mode == '2':
+                yield Rel(self, cur)
+            else:
+                raise Exception('Unknown param mode')
 
     def __getitem__(self, item):
         return self._state[item]
@@ -120,7 +140,7 @@ class Interpreter:
                 p1, p2, des = self._read(3, modes=modes)
                 des(p1() * p2())
 
-            elif op == 3:  # Set
+            elif op == 3:  # Set IC
                 p1, *_ = self._read(1, modes=modes)
                 p1(self.stdin.get())
 
@@ -145,6 +165,10 @@ class Interpreter:
             elif op == 8:  # EQUAL
                 p1, p2, p3, *_ = self._read(3, modes=modes)
                 p3(bool(p1() == p2()))
+
+            elif op == 9:  # Set RBO
+                p1, *_ = self._read(1, modes=modes)
+                self._rbo = p1()
 
             elif op == 99:
                 self.log('Stop program')

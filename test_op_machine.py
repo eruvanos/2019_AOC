@@ -34,9 +34,18 @@ def test_set():
     assert subject[0] == 5
 
 
-def test_print():
+def test_out():
     subject = Interpreter([4, 0, 99])
 
     subject.run()
 
     assert subject.stdout == [4]
+
+
+def test_relative_mode():
+    subject = Interpreter([109, 5, 204, -1, 99])
+
+    subject.run()
+
+    assert subject._rbo == 5
+    assert subject.stdout.get() == 99
