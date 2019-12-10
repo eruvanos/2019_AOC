@@ -22,7 +22,7 @@ def test_multiply_param_modes():
 
     subject.run()
 
-    assert subject[:5] == (1002, 4, 3, 4, 99)
+    assert subject[:] == (1002, 4, 3, 4, 99)
 
 
 def test_set():

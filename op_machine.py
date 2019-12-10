@@ -46,6 +46,7 @@ class Rel(Param):
         self._value = value
 
     def set(self, value):
+        # FIXME maybe implement Param modes in the interpreter
         self._interpreter[self._value + self._interpreter._rbo] = value
 
     def get(self):
@@ -74,10 +75,7 @@ class Interpreter:
 
     def __init__(self, programm: List[int]) -> None:
         super().__init__()
-        self._memory: Dict[int, int] = defaultdict(
-            default_factory=int,
-            **{k: v for k, v in enumerate(programm)}
-        )
+        self._memory: Dict[int, int] = defaultdict(int, {k: v for k, v in enumerate(programm)})
         self._ic = 0  # Instruction Counter
         self._rbo = 0  # Relative Base Offset
         self.stdout = Queue()
@@ -97,6 +95,10 @@ class Interpreter:
     def put(self, value):
         """Adds value to stdin"""
         self.stdin.put(value)
+
+    def get(self):
+        """Reads value from stdout, blocks if empty"""
+        self.stdout.get()
 
     def stream(self):
         while not self.stdout.empty():
@@ -126,12 +128,13 @@ class Interpreter:
         if type(key) is slice:
             start = key.start
             stop = key.stop
+            step = key.step
 
             if start is None:
                 start = min(self._memory.keys())
             if stop is None:
-                stop = min(self._memory.keys())
-            if key.step is None:
+                stop = max(self._memory.keys()) + 1
+            if step is None:
                 step = 1
 
             return tuple(self._memory[i] for i in range(start, stop, step))
