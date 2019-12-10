@@ -1,6 +1,7 @@
+from collections import defaultdict
 from queue import Queue
 from threading import Thread
-from typing import List, Tuple
+from typing import List, Tuple, Dict, Union
 
 
 def read_input(_list: list):
@@ -71,9 +72,12 @@ class Var(Param):
 class Interpreter:
     DEBUG = False
 
-    def __init__(self, state: List[int]) -> None:
+    def __init__(self, programm: List[int]) -> None:
         super().__init__()
-        self._state = state.copy()
+        self._memory: Dict[int, int] = defaultdict(
+            default_factory=int,
+            **{k: v for k, v in enumerate(programm)}
+        )
         self._ic = 0  # Instruction Counter
         self._rbo = 0  # Relative Base Offset
         self.stdout = Queue()
@@ -87,8 +91,8 @@ class Interpreter:
     @staticmethod
     def from_file(file):
         with open(file) as f:
-            state = [int(e) for e in f.read().split(',')]
-        return Interpreter(state)
+            programm = [int(e) for e in f.read().split(',')]
+        return Interpreter(programm)
 
     def put(self, value):
         """Adds value to stdin"""
@@ -102,7 +106,7 @@ class Interpreter:
         modes = modes.zfill(amount)
 
         for mode in reversed(modes):
-            cur = self._state[self._ic]
+            cur = self._memory[self._ic]
             self._ic += 1
 
             if mode == '0':
@@ -114,11 +118,28 @@ class Interpreter:
             else:
                 raise Exception('Unknown param mode')
 
-    def __getitem__(self, item):
-        return self._state[item]
+    def __getitem__(self, key) -> Union[int, Tuple[int]]:
+        """
+        Returns value from memory. Can handle slices
+        """
+
+        if type(key) is slice:
+            start = key.start
+            stop = key.stop
+
+            if start is None:
+                start = min(self._memory.keys())
+            if stop is None:
+                stop = min(self._memory.keys())
+            if key.step is None:
+                step = 1
+
+            return tuple(self._memory[i] for i in range(start, stop, step))
+
+        return self._memory[key]
 
     def __setitem__(self, key, value: int):
-        self._state[key] = value
+        self._memory[key] = value
 
     def start(self):
         thread = Thread(target=self.run)
@@ -176,5 +197,5 @@ class Interpreter:
             else:
                 raise Exception(f'Unknown OP code {op}')
 
-    def dump(self) -> Tuple[int]:
-        return tuple(self._state)
+    def dump(self) -> Dict[int, int]:
+        return self._memory.copy()
