@@ -1,5 +1,3 @@
-from io import StringIO
-
 from op_machine import Interpreter
 
 
@@ -19,18 +17,26 @@ def test_multiply():
     assert subject[3] == 6
 
 
-def test_set():
-    subject = Interpreter([3, 0, 10, 99])
+def test_multiply_param_modes():
+    subject = Interpreter([1002, 4, 3, 4, 33])
 
     subject.run()
 
-    assert subject[0] == 10
+    assert subject.dump() == (1002, 4, 3, 4, 99)
+
+
+def test_set():
+    subject = Interpreter([3, 0, 99])
+    subject.stdin.insert(0, 5)
+
+    subject.run()
+
+    assert subject[0] == 5
 
 
 def test_print():
     subject = Interpreter([4, 0, 99])
-    subject._stdout = StringIO()
 
     subject.run()
 
-    assert subject._stdout.getvalue() == '4'
+    assert subject.stdout == [4]
