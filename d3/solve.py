@@ -1,19 +1,3 @@
-from typing import NamedTuple
-
-
-class Vector(NamedTuple):
-    x: int
-    y: int
-
-    def __add__(self, other):
-        x, y = other
-        return Vector(self.x + y, self.y + y)
-
-    def __sub__(self, other):
-        x, y = other
-        return Vector(self.x - y, self.y - y)
-
-
 def trace_route(path):
     x, y = 0, 0
     trace = []
