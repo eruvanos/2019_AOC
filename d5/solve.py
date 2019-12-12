@@ -1,6 +1,4 @@
-from typing import List
-
-from op_machine import Interpreter, read_input
+from op_machine import Interpreter
 
 
 def solve():

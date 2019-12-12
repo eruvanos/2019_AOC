@@ -4,10 +4,6 @@ from threading import Thread
 from typing import List, Tuple, Dict, Union
 
 
-def read_input(_list: list):
-    return {i: int(v) for i, v in enumerate(_list)}
-
-
 # class Ref(int):
 #     pass
 

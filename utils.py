@@ -34,3 +34,13 @@ class Vector(NamedTuple):
         x = self.x - other.x
         y = self.y - other.y
         return math.sqrt(x ** 2 + y ** 2)
+
+    def angle(self, target: 'Vector'):
+        """
+        returns angle beween this point and the other, pointing to the east with 0 degree, running counter clockwise.
+        """
+        radian = math.atan2(target.y - self.y, target.x - self.x)
+        degrees = math.degrees(radian)
+
+        positive_degree = 360 + degrees
+        return positive_degree
