@@ -72,7 +72,7 @@ class Interpreter:
     def __init__(self, program: List[int]) -> None:
         super().__init__()
         self._memory: Dict[int, int] = defaultdict(int, {k: v for k, v in enumerate(program)})
-        self._ic = 0  # Instruction Counter
+        self._ip = 0  # Instruction Counter
         self._rbo = 0  # Relative Base Offset
         self._finished = False
         self.stdout = Queue()
@@ -108,8 +108,8 @@ class Interpreter:
         modes = modes.zfill(amount)
 
         for mode in reversed(modes):
-            cur = self._memory[self._ic]
-            self._ic += 1
+            cur = self._memory[self._ip]
+            self._ip += 1
 
             if mode == '0':
                 yield Ref(self, cur)
@@ -155,10 +155,10 @@ class Interpreter:
 
     def run_debug(self):
         self.DEBUG = True
-        self.log(f'  MEM| (IC: {self._ic}, RBO: {self._rbo})', self[:])
+        self.log(f'  MEM| (IC: {self._ip}, RBO: {self._rbo})', self[:])
         while not self.finished:
             self.step()
-            self.log(f'  MEM| (IC: {self._ic}, RBO: {self._rbo})', self[:])
+            self.log(f'  MEM| (IC: {self._ip}, RBO: {self._rbo})', self[:])
 
     def step(self):
         op_code, *_ = self._read(1, modes='1')
@@ -179,7 +179,7 @@ class Interpreter:
         elif op == 3:  # READ
             p1, *_ = self._read(1, modes=modes)
             self.log(f'3 RIN| {p1} = STDIN')
-            p1(self.stdin.get(timeout=5))
+            p1(self.stdin.get())
 
         elif op == 4:  # PRINT
             p1, *_ = self._read(1, modes=modes)
@@ -190,7 +190,7 @@ class Interpreter:
             p1, p2, *_ = self._read(2, modes=modes)
             if p1() != 0:
                 self.log(f'5 JIT| {p1} != 0 | IC = {p2}')
-                self._ic = p2()
+                self._ip = p2()
             else:
                 self.log(f'5 JIT| {p1} != 0 | SKIP')
 
@@ -198,7 +198,7 @@ class Interpreter:
             p1, p2, *_ = self._read(2, modes=modes)
             if p1() == 0:
                 self.log(f'6 JIF| {p1} == 0 | IC = {p2}')
-                self._ic = p2()
+                self._ip = p2()
             else:
                 self.log(f'6 JIF| {p1} == 0 | SKIP')
 

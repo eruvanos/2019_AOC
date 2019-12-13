@@ -21,7 +21,7 @@ class Vector(NamedTuple):
 
     def __add__(self, other):
         x, y = other
-        return Vector(self.x + y, self.y + y)
+        return Vector(self.x + x, self.y + y)
 
     def __sub__(self, other):
         x, y = other
@@ -44,3 +44,18 @@ class Vector(NamedTuple):
 
         positive_degree = 360 + degrees
         return positive_degree
+
+
+DIRECTIONS = {
+    'R': Vector(0, 1),
+    'L': Vector(0, -1),
+    'U': Vector(1, 0),
+    'D': Vector(-1, 0)
+}
+
+DIRECTION_ANGLES = {
+    'R': 90,
+    'L': 270,
+    'U': 0,
+    'D': 180
+}
