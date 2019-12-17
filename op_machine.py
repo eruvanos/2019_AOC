@@ -101,8 +101,10 @@ class Interpreter:
         return self.stdout.get()
 
     def stream(self):
-        while not self.stdout.empty():
-            yield self.stdout.get()
+        while not self.finished:
+            output_value = self.stdout.get()
+            if output_value is not None:
+                yield output_value
 
     def _read(self, amount, modes='') -> List[Ref]:
         modes = modes.zfill(amount)
@@ -220,6 +222,7 @@ class Interpreter:
         elif op == 99:
             self.log('Stop program')
             self._finished = True
+            self.stdout.put(None)
         else:
             raise Exception(f'Unknown OP code {op}')
 
