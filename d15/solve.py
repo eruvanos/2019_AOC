@@ -1,9 +1,15 @@
+import json
+from collections import namedtuple
+from threading import Thread
 from typing import Tuple
 
 import arcade
 
 from op_machine import Interpreter
 from utils import Vector
+from utils.data import PriorityQueue
+from utils.gui import Canvas
+from utils.path import SetGraph
 
 WALL = 'X'
 FREE = ' '
@@ -15,179 +21,170 @@ DIR_MAP = {
     'W': (3, Vector(-1, 0),),
 }
 
+key_map = {
+    arcade.key.UP: 1,
+    arcade.key.DOWN: 2,
+    arcade.key.RIGHT: 4,
+    arcade.key.LEFT: 3,
+}
+dir_map = {
+    1: Vector(0, 1),
+    2: Vector(0, -1),
+    3: Vector(-1, 0),
+    4: Vector(1, 0),
+}
 
-def next_dir(ship, cur_dir, cur_pos) -> Tuple['CMD', 'NewDir', 'NextPos']:
-    # stick right
-    right_dir = DIRECTIONS[cur_dir + 1 % 4]
-    right_cmd, right_vec = DIR_MAP[right_dir]
-    next_pos = cur_pos + right_vec
-    if next_pos not in ship:
-        return right_cmd, right_dir, next_pos
-    elif ship[next_pos] == FREE:
-        return right_cmd, right_dir, next_pos
-
-    # move on
-    next_dir = DIRECTIONS[cur_dir % 4]
-    next_cmd, next_vec = DIR_MAP[next_dir]
-    next_pos = cur_pos + next_vec
-    if next_pos not in ship:
-        return next_cmd, next_dir, next_pos
-    elif ship[next_pos] == FREE:
-        return next_cmd, next_dir, next_pos
-
-    # turn left
-    left_dir = DIRECTIONS[cur_dir - 1 % 4]
-    left_cmd, left_vec = DIR_MAP[left_dir]
-    next_pos = cur_pos + left_vec
-    if next_pos not in ship:
-        return left_cmd, left_dir, next_pos
-    elif ship[next_pos] == FREE:
-        return left_cmd, left_dir, next_pos
-
-    raise Exception('Helpless')
+Entry = namedtuple('Entry', 'dir1 dir2 fdir')
 
 
-def solve():
+class Algo:
+    DIRS = {
+        'N': Entry(*'ENW'),
+        'E': Entry(*'SEN'),
+        'S': Entry(*'WSE'),
+        'W': Entry(*'NWS'),
+    }
+
+    def __init__(self):
+        self.cd = 'N'
+
+    def next(self, ship, cur_pos) -> Tuple['CMD', 'Vector']:
+        strategy = self.DIRS[self.cd]
+
+        cmd1, vec1 = DIR_MAP[strategy.dir1]
+        cmd2, vec2 = DIR_MAP[strategy.dir2]
+
+        if ship.get(cur_pos + vec1) is None:
+            self.cd = strategy.dir1  # FIXME If we run against a wall this should not be executed
+            return cmd1, vec1
+        elif ship.get(cur_pos + vec2) is None:
+            self.cd = strategy.dir2
+            return cmd2, vec2
+        else:
+            self.cd = strategy.fdir
+            return None, None
+
+
+def run(canvas: Canvas):
     robot = Interpreter.from_file('input.txt')
     robot.start()
 
     cur_pos = Vector(0, 0)
-    cur_dir = 0
+    canvas.set(cur_pos, 1)
+    # cur_dir = 'N'
     ship = dict()
+    algo = Algo()
+    oxygen_pos = None
 
-    while not robot.finished:
+    long_road = []
+
+    while True:
         # walk
-        cmd, cur_dir, next_pos = next_dir(ship, cur_dir, cur_pos)
-        robot.put(next_dir)
+        old_cd = algo.cd
+        cmd, vec = algo.next(ship, cur_pos)
+        if cmd is None:
+            continue
+        next_pos = cur_pos + vec
+
+        # manual
+        # key = canvas.get_key_event()
+        # while not (cmd := key_map.get(key)):
+        #     pass
+        # next_pos = cur_pos + dir_map[cmd]
+
+        # sleep(0.1)
+        robot.put(cmd)
 
         # process output
         result = robot.get()
         if result == 0:
-            # hit wall
+            # hit wall, reset direction of algo
             ship[next_pos] = WALL
+            canvas.add(next_pos)
+            algo.cd = old_cd
         elif result in (1, 2):
+            # moved
+            canvas.set(next_pos, 1)
+            canvas.remove(cur_pos)
             cur_pos = next_pos
 
-        if result == 2:
-            print(f'Found oxigen at {cur_pos}')
+            if oxygen_pos is None:  # record path
+                if next_pos in set(long_road):
+                    start_index = long_road.index(next_pos)
+                    long_road = long_road[:start_index]
 
-    pass
+                long_road.append(next_pos)
+
+        if result == 2:
+            # found oxygen
+            print(f'Found oxygen at {next_pos} {len(long_road)}')
+            if oxygen_pos:
+                break
+            oxygen_pos = next_pos
+
+    # calc distance
+    # graph = SetGraph({key for key, value in ship.items() if value == WALL})
+    # robot_path = a_star_search(graph, Vector(0, 0), oxygen_pos)
+    # print(len(robot_path))
+    print(long_road)
+
+    with open('./mace.json', 'wt') as f:
+        json.dump([(key.x, key.y) for key, value in ship.items() if value == WALL], f)
+
+
+def solve1():
+    canvas = ThisCanvas(debug=True)
+    Thread(target=run, daemon=True, args=(canvas,)).start()
+    arcade.run()
+
+
+class ThisCanvas(Canvas):
+    def create_new_sprite(self, vec: Vector):
+        sprite = arcade.Sprite('wall.png', scale=0.5)
+        sprite.append_texture(arcade.load_texture('robot.png', scale=0.5))
+        sprite.append_texture(arcade.load_texture('bubble.png', scale=0.5))
+        return sprite
+
+
+def solve2():
+    with open('./mace.json') as f:
+        mace = json.load(f)
+    mace = {Vector(x, y) for x, y in mace}
+
+    graph = SetGraph(mace)
+
+    queue = PriorityQueue()
+    queue.put((0, Vector(16, 16)))
+
+    max_distance = 0
+    visited = set()
+    while not queue.empty():
+        distance, pos = queue.get()
+        max_distance = max(max_distance, distance)
+
+        visited.add(Vector(*pos))
+
+        for n in graph.neighbors(pos):
+            if n not in visited:
+                queue.put((distance + 1, n))
+
+    print(max_distance)
+
+    canvas = ThisCanvas()
+
+
+    for vec in mace:
+        canvas.set(vec, 0)
+    for vec in visited:
+        canvas.set(vec, 2)
+
+    arcade.run()
+
+
+
+
 
 
 if __name__ == '__main__':
-    solve()
-
-
-
-## GUI
-
-class Canvas(arcade.Window):
-    def __init__(self, world_state: Dict[Vector, int], queue: Queue):
-        super().__init__()
-
-        self.world_state = world_state
-        self.key_queue = queue
-
-        self._sprites = arcade.SpriteList()
-        self._obj_sprite = dict()
-
-        self.score = 0
-        self.SCALE = 64
-
-        # shoul_update
-        self.UPS = 60
-        self._last_update = 0
-
-    def create_new_sprite(self, obj):
-        sprite = arcade.Sprite('wall.png', scale=0.5)
-        sprite.append_texture(arcade.load_texture('box.png', scale=0.5))
-        sprite.append_texture(arcade.load_texture('paddle.png', scale=2))
-        sprite.append_texture(arcade.load_texture('ball.png', scale=0.5))
-        return sprite
-
-    def on_key_press(self, symbol: int, modifiers: int):
-        if symbol == arcade.key.LEFT:
-            self.key_queue.put(-1)
-        elif symbol == arcade.key.RIGHT:
-            self.key_queue.put(1)
-        elif symbol == arcade.key.DOWN:
-            self.key_queue.put(0)
-        elif symbol == arcade.key.SPACE:
-            # auto play
-            self.auto_turn()
-
-    def auto_turn(self):
-        ball = None
-        paddle = None
-        for vec, kind in self.world_state.items():
-            if kind == 4:
-                ball = vec
-            if kind == 3:
-                paddle = vec
-
-            if None not in (ball, paddle):
-                break
-        else:
-            self.key_queue.put(0)
-            return
-
-        if paddle.x < ball.x:
-            self.key_queue.put(1)
-        elif paddle.x > ball.x:
-            self.key_queue.put(-1)
-        else:
-            self.key_queue.put(0)
-
-    def on_update(self, delta_time: float):
-        if self.should_update(delta_time):
-            self.auto_turn()
-
-        # Update sprites and viewport
-        for vec, kind in list(self.world_state.items()):
-            sprite = self._obj_sprite.get(vec)
-
-            if sprite is None:
-                sprite = self.create_new_sprite(vec)
-                self._obj_sprite[vec] = sprite
-                self._sprites.append(sprite)
-
-            if kind == 0:
-                sprite.alpha = 0
-            else:
-                sprite.alpha = 255
-                if kind == 1:
-                    sprite.set_texture(0)
-                elif kind == 2:
-                    sprite.set_texture(1)
-                elif kind == 3:
-                    sprite.set_texture(2)
-                elif kind == 4:
-                    sprite.set_texture(3)
-
-            sprite.center_x = vec.x * self.SCALE
-            sprite.center_y = vec.y * self.SCALE
-
-        self.apply_margine()
-
-    def should_update(self, dt):
-        self._last_update += dt
-        if self._last_update > 1 / self.UPS:
-            self._last_update = 0
-            return True
-        else:
-            return False
-
-    def apply_margine(self):
-        min_x, max_x = 0, 0
-        min_y, max_y = 0, 0
-        for sprite in self._sprites:
-            min_x = min(sprite.center_x, min_x)
-            max_x = max(sprite.center_x, max_x)
-            min_y = min(sprite.center_y, min_y)
-            max_y = max(sprite.center_y, max_y)
-        margine = 100
-        self.set_viewport(min_x - margine, max_x + margine, max_y + margine, min_y - margine)
-
-    def on_draw(self):
-        arcade.start_render()
-        self._sprites.draw()
+    # solve1()
+    solve2()

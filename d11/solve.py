@@ -4,7 +4,8 @@ from time import sleep
 import arcade
 
 from op_machine import Interpreter
-from utils import Vector, DIRECTIONS
+from utils import Vector
+from utils.maps import DIRECTIONS
 
 
 class Robot(Thread):
