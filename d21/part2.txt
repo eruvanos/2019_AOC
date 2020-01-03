@@ -1,0 +1,19 @@
+# Jump if there is a hole in fron of us
+NOT A J
+NOT B T
+OR T J
+NOT C T
+OR T J
+
+
+# jump if H is Ground or E is Ground
+NOT J T
+
+OR H T
+OR E T
+AND T J
+
+
+# Prevent jump into a hole
+AND D J
+RUN
