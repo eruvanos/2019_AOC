@@ -5,7 +5,7 @@ import arcade
 
 from op_machine import Interpreter
 from utils import Vector
-from utils.maps import DIRECTIONS
+from utils.direction import ARROW_DIR
 
 
 class Robot(Thread):
@@ -26,7 +26,7 @@ class Robot(Thread):
         self._direction += 1
 
     def move(self):
-        self.pos += DIRECTIONS[self.direction()]
+        self.pos += ARROW_DIR[self.direction()]
 
     def finished(self):
         return self._interpreter.finished
