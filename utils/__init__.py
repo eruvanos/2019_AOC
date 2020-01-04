@@ -4,15 +4,24 @@ from typing import NamedTuple
 
 
 class Timer:
+    def __init__(self, label='', log=True, prefix=''):
+        self._label = label
+        self._log = log
+        self._prefix = prefix
+
     def __enter__(self):
         self.start = time()
         return self
 
     def __exit__(self, *args, **kwargs):
         self.end = time() - self.start
+        print(f'{self._prefix}{self._label} {self.end:.4}')
 
     def time(self):
         return self.end
+
+    def __call__(self, label='', log=True):
+        return Timer(label, log, self._prefix + '\t')
 
 
 class Vector(NamedTuple):
