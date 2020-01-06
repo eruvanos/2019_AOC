@@ -23,10 +23,10 @@ class NetQueue(Queue):
             return super().get(True, None)
 
 
-def receiver(packageQueue: Queue, inter: Interpreter):
+def receiver(package_queue: Queue, inter: Interpreter):
     while not inter.finished:
         dest, x, y = inter.get(), inter.get(), inter.get()
-        packageQueue.put(Packet(dest, x, y))
+        package_queue.put(Packet(dest, x, y))
 
 
 def solve():
@@ -47,19 +47,21 @@ def solve():
         inters[dest].put(y)
 
 if __name__ == '__main__':
-    # solve()
-    q = Queue()
+    solve()
 
-    def exint(address):
-        inter = Interpreter.from_file('input.txt')
-        inter.stdin = NetQueue()
-        inter.put(0)
-        inter.start()
-        while not inter.finished:
-            q.put(f'{address} {inter.get()} {inter.get()} {inter.get()}')
 
-    for i in range(50):
-        Thread(target=exint, args=(i,)).start()
-
-    while True:
-        print(q.get())
+    # q = Queue()
+    #
+    # def exint(address):
+    #     inter = Interpreter.from_file('input.txt')
+    #     inter.stdin = NetQueue()
+    #     inter.put(0)
+    #     inter.start()
+    #     while not inter.finished:
+    #         q.put(f'{address} {inter.get()} {inter.get()} {inter.get()}')
+    #
+    # for i in range(50):
+    #     Thread(target=exint, args=(i,)).start()
+    #
+    # while True:
+    #     print(q.get())
