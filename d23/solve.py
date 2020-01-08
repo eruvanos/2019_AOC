@@ -1,6 +1,6 @@
 from collections import namedtuple
 from queue import Queue
-from threading import Thread
+from threading import Thread, Lock
 
 from op_machine import Interpreter
 
@@ -16,12 +16,24 @@ def new_inter(address):
 
 
 class NetQueue(Queue):
-    def get(self, *_):
-        if self.empty():
-            return -1
-        else:
-            return super().get(True, None)
 
+    def __init__(self):
+        super().__init__()
+
+        self._lock = Lock()
+
+    def get(self, *_):
+        with self._lock:
+            if self.empty():
+                print(f'')
+                return -1
+            else:
+                return super().get(True, None)
+
+    def put(self, *values):
+        with self._lock:
+            for v in values:
+                super().put(v)
 
 def receiver(package_queue: Queue, inter: Interpreter):
     while not inter.finished:
@@ -43,8 +55,7 @@ def solve():
         if dest == 255:
             exit()
 
-        inters[dest].put(x)
-        inters[dest].put(y)
+        inters[dest].stdin.put(x, y)
 
 if __name__ == '__main__':
     solve()
