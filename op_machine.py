@@ -78,13 +78,15 @@ class Interpreter:
         self.stdout = Queue()
         self.stdin = Queue()
 
+        self._log_prefix = ''
+
     @property
     def finished(self):
         return self._finished
 
     def log(self, *text):
         if self.DEBUG:
-            print(*text)
+            print(self._log_prefix, *text)
 
     @staticmethod
     def from_file(file):
@@ -152,11 +154,17 @@ class Interpreter:
         return thread
 
     def run(self):
-        while not self._finished:
-            self.step()
+        try:
+            while not self._finished:
+                self.step()
+        except Exception as e:
+            print('Stopped execution:', str(e))
 
-    def run_debug(self):
+
+    def run_debug(self, log_prefix=''):
         self.DEBUG = True
+        self._log_prefix = log_prefix
+
         self.log(f'  MEM| (IC: {self._ip}, RBO: {self._rbo})', self[:])
         while not self.finished:
             self.step()
@@ -180,8 +188,9 @@ class Interpreter:
 
         elif op == 3:  # READ
             p1, *_ = self._read(1, modes=modes)
-            self.log(f'3 RIN| {p1} = STDIN')
-            p1(self.stdin.get())
+            value = self.stdin.get()
+            self.log(f'3 RIN| {p1} = STDIN[{value}]')
+            p1(value)
 
         elif op == 4:  # PRINT
             p1, *_ = self._read(1, modes=modes)
@@ -224,6 +233,7 @@ class Interpreter:
             self._finished = True
             self.stdout.put(None)
         else:
+            self.log(f'ERR: Unknown OP Code {op}')
             raise Exception(f'Unknown OP code {op}')
 
     def dump(self) -> Dict[int, int]:
